@@ -1,16 +1,10 @@
+import fs from "fs";
 import { dir } from "console";
 import { randomInt } from "crypto";
 import TelegramBot from "node-telegram-bot-api";
 import { text } from "stream/consumers";
 
-let token: string = "";
-
-fetch("botToken.txt")
-  .then((res) => res.text())
-  .then((text) => {
-    token = text;
-   })
-  .catch((e) => console.error(e));
+const token: string = fs.readFileSync("botToken.txt", "utf8").trim();
 
 const bot = new TelegramBot(token, {polling: true});
 
