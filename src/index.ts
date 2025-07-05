@@ -4,17 +4,23 @@ import { randomInt } from "crypto";
 import TelegramBot from "node-telegram-bot-api";
 import { text } from "stream/consumers";
 
+import { Bank } from "./bank";
+const bank = new Bank();
+bank.init();
+
 const token: string = fs.readFileSync("botToken.txt", "utf8").trim();
+const admins = fs.readFileSync("admins.txt", "utf-8").split("\n");
 
 const bot = new TelegramBot(token, {polling: true});
 
 import { GameLabyrinth } from "./labyrinth";
 const gameLabyrinth = new GameLabyrinth();
 
-bot.onText(/\/start/, (msg) => {
+bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
+    const userBalance = await bank.getBalance(chatId);
 
-    bot.sendMessage(chatId, "You started the bot!\n--- MAIN MENU ---", {
+    await bot.sendMessage(chatId, `You started the bot!\n*--- MAIN MENU ---*\nBalance: *${userBalance}* 💠`, {
         parse_mode: 'Markdown',
         reply_markup: {
             inline_keyboard: [
@@ -36,14 +42,34 @@ bot.onText(/\/start/, (msg) => {
    });
 }); 
 
-bot.on("callback_query", (query: any) => {
-    bot.answerCallbackQuery(query.id);
+bot.onText(/\/setBalance (.+)/, async (msg, match: any) => {
+    const chatId = msg.chat.id;
+    if (!(admins.includes(chatId.toString()))) 
+        return await bot.sendMessage(chatId, "You are not allowed to use this command!");
+    const resp = match[1];
+
+    if (!(+resp)) await bot.sendMessage(chatId, "Must be a number!");
+    else {
+        await bank.setBalance(chatId, resp);
+        await bot.sendMessage(chatId, `Balance set successfully!`);
+    }
+});
+
+bot.onText(/\/clear/, async (msg) => {
+    for (let i=0; i<101; ++i) {
+        await bot.deleteMessage(msg.chat.id, msg.message_id - i).catch(er=>{return});
+    }
+});
+
+bot.on("callback_query", async (query: any) => {
+    await bot.answerCallbackQuery(query.id);
 
     const chatId = query.message.chat.id;
     const data = query.data;
+    const userBalance = await bank.getBalance(chatId);
 
     if (data === "main_menu") {
-        bot.editMessageText(`--- MAIN MENU ---`, {
+        await bot.editMessageText(`*--- MAIN MENU ---*\nBalance: *${userBalance}*`, {
             chat_id: query.message.chat.id,
             message_id: query.message.message_id,
             parse_mode: 'Markdown',
@@ -77,17 +103,17 @@ bot.on("callback_query", (query: any) => {
     }
 
     if (data === "stop_bot") {
-        bot.deleteMessage(query.message.chat.id, query.message.message_id);
-        bot.sendMessage(query.message.chat.id, "Type /start to start again");
+        await bot.deleteMessage(query.message.chat.id, query.message.message_id);
+        await bot.sendMessage(query.message.chat.id, "Type /start to start again");
     }
 
 });
 
-bot.onText(/\/echo (.+)/, (msg: TelegramBot.Message, match: RegExpExecArray | any) => {
+bot.onText(/\/echo (.+)/, async (msg: TelegramBot.Message, match: RegExpExecArray | any) => {
     const chatId = msg.chat.id;
     const resp = match[1];
 
-    bot.sendMessage(chatId, resp);
+    await bot.sendMessage(chatId, resp);
 });
 
 bot.on("polling_error", (err) => console.error("[Polling Error]", err));
