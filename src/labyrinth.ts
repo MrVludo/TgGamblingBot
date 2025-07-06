@@ -102,7 +102,8 @@ export class GameLabyrinth {
             let currentPath = "";
             for (let i=0; i<userState.currentStep; ++i) currentPath+=userState.path[i];
             if (userState.currentStep == 3) {
-                bot.editMessageText(`${currentPath}\nYOU FOUND THE WAY!\nCONGRATULATIONS!!\nBalance: *${bank.getBalance(chatId)}* 💠`, {
+                const userBalance = await bank.getBalance(chatId);
+                bot.editMessageText(`${currentPath}\nYOU FOUND THE WAY!\nCONGRATULATIONS!!\nBalance: *${userBalance}* 💠`, {
                     parse_mode: 'Markdown',
                     chat_id: chatId,
                     message_id: messageId,
@@ -141,7 +142,8 @@ export class GameLabyrinth {
             });
         }
         else {
-            bot.editMessageText(`WROONGG!\nYOU DIDN'T FIND IT!!\nCorrect way: ${userState.path.join("")}\nBalance: *${bank.getBalance(chatId)}* 💠`, {
+            const userBalance = await bank.getBalance(chatId)
+            bot.editMessageText(`WROONGG!\nYOU DIDN'T FIND IT!!\nCorrect way: ${userState.path.join("")}\nBalance: *${userBalance}* 💠`, {
                 parse_mode: 'Markdown',
                 chat_id: chatId,
                 message_id: messageId,
