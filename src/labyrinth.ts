@@ -1,11 +1,15 @@
 import { randomInt } from "crypto";
 import TelegramBot from "node-telegram-bot-api";
+import { Bank } from "./bank";
+
+const GAMEPRICE = 10;
+const WINPOT = 100;
 
 export class GameLabyrinth {
     // chatId -> {maze path and current step}
     private userLabyGameState = new Map<number, {path: string[], currentStep: number}>();
 
-    public StartGame(chatId: number, messageId: number, bot: TelegramBot) {
+    public async StartGame(chatId: number, messageId: number, bot: TelegramBot, bank: Bank) {
         const directions = ["⬅️", "⬆️", "➡️"];
         const path: Array<string> = [];
 
@@ -41,25 +45,65 @@ export class GameLabyrinth {
         });
     }
 
-    public gamePlayStep(chatId: number, messageId: number, data: string, bot: TelegramBot) {
+    public async gameContinueStep(chatId: number, messageId: number, bot: TelegramBot, bank: Bank) { 
         const userState = this.userLabyGameState.get(chatId);
         if (!userState) {
             bot.deleteMessage(chatId, messageId);
             bot.sendMessage(chatId, "Pls, start a game before playing. /start");
             return;
         }
+        if (!userState.currentStep) {
+            return this.StartGame(chatId, messageId, bot, bank);
+        } 
+        userState.currentStep--;
+        this.userLabyGameState.set(chatId, userState);
+        const data = userState.path[userState.currentStep];
+        return this.gamePlayStep(chatId, messageId, data, bot, bank);
+    }
+
+    public async gamePlayStep(chatId: number, messageId: number, data: string, bot: TelegramBot, bank: Bank) {
+        const userState = this.userLabyGameState.get(chatId);
+        if (!userState) {
+            bot.deleteMessage(chatId, messageId);
+            bot.sendMessage(chatId, "Pls, start a game before playing. /start");
+            return;
+        }
+        if (userState.currentStep == 0) {
+            let userBalance = await bank.getBalance(chatId);
+            if (userBalance < GAMEPRICE) {
+                bot.editMessageText(`🔔 YOU ARE TOO BROKE! THE GAME COSTS ${GAMEPRICE} 💠\nBalance: *${userBalance}* 💠`, {
+                    parse_mode: 'Markdown',
+                    chat_id: chatId,
+                    message_id: messageId,
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{text:"Top up balance and keep GAMBLING", callback_data:"deposit"}],
+                            [{text:"Quit", callback_data:"main_menu"}]
+                        ]
+                    }
+                });
+                return;
+            }
+            userBalance -= GAMEPRICE;
+            await bank.setBalance(chatId, userBalance);
+        }
 
         const stepChoice = 
+            data === "⬅️" ? '⬅️' :
+            data === "⬆️" ? '⬆️' :
+            data === "➡️" ? '➡️' :
             data === "laby_left" ? '⬅️' :
             data === "laby_forward" ? '⬆️' :
             '➡️';
+        // console.log(data); console.log(stepChoice);
 
         if (stepChoice === userState.path[userState.currentStep]) {
             userState.currentStep++;
             let currentPath = "";
             for (let i=0; i<userState.currentStep; ++i) currentPath+=userState.path[i];
             if (userState.currentStep == 3) {
-                bot.editMessageText(`${currentPath}\nYOU FOUND THE WAY!\nCONGRATULATIONS!!`, {
+                bot.editMessageText(`${currentPath}\nYOU FOUND THE WAY!\nCONGRATULATIONS!!\nBalance: *${bank.getBalance(chatId)}* 💠`, {
+                    parse_mode: 'Markdown',
                     chat_id: chatId,
                     message_id: messageId,
                     reply_markup: {
@@ -70,12 +114,14 @@ export class GameLabyrinth {
                     }
                 });
                 this.userLabyGameState.delete(chatId);
+                bank.changeBalance(chatId, +WINPOT);
                 return;
             }
             const directions = [["⬅️", "laby_left"], ["⬆️","laby_forward"], ["➡️","laby_right"]];
             let btn1 = (stepChoice === "⬅️" ? 1 : 0);
             let btn2 = (stepChoice === "⬆️" || btn1 === 1 ? 2 : 1);
             bot.editMessageText(`Correct!!\nLABYRINTH ꡙ‍ꡌ‍ ${currentPath}`, {
+                parse_mode: 'Markdown',
                 chat_id: chatId,
                 message_id: messageId,
                 reply_markup: {
@@ -88,14 +134,15 @@ export class GameLabyrinth {
                             {text:directions[btn2][0], callback_data:directions[btn2][1]},
                         ],
                         [
-                            {text:"Quit", callback_data:"main_menu"},
+                            {text:"Quit", callback_data:"game_quit"},
                         ],
                     ]
                 }
             });
         }
         else {
-            bot.editMessageText(`WROONGG!\nYOU DIDN'T FIND IT!!\nCorrect way: ${userState.path.join("")}`, {
+            bot.editMessageText(`WROONGG!\nYOU DIDN'T FIND IT!!\nCorrect way: ${userState.path.join("")}\nBalance: *${bank.getBalance(chatId)}* 💠`, {
+                parse_mode: 'Markdown',
                 chat_id: chatId,
                 message_id: messageId,
                 reply_markup: {
@@ -105,7 +152,7 @@ export class GameLabyrinth {
                     ]
                 }
             });
-            this.userLabyGameState.delete(chatId);
+            // this.userLabyGameState.delete(chatId);
             return; 
         }
     }

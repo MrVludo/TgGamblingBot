@@ -14,6 +14,7 @@ const admins = fs.readFileSync("admins.txt", "utf-8").split("\n");
 const bot = new TelegramBot(token, {polling: true});
 
 import { GameLabyrinth } from "./labyrinth";
+import { callbackify } from "util";
 const gameLabyrinth = new GameLabyrinth();
 
 bot.onText(/\/start/, async (msg) => {
@@ -69,7 +70,7 @@ bot.on("callback_query", async (query: any) => {
     const userBalance = await bank.getBalance(chatId);
 
     if (data === "main_menu") {
-        await bot.editMessageText(`*--- MAIN MENU ---*\nBalance: *${userBalance}*`, {
+        await bot.editMessageText(`*--- MAIN MENU ---*\nBalance: *${userBalance}* 💠`, {
             chat_id: query.message.chat.id,
             message_id: query.message.message_id,
             parse_mode: 'Markdown',
@@ -94,12 +95,49 @@ bot.on("callback_query", async (query: any) => {
         return;
     }
 
+    if (data === "deposit") {
+        bank.changeBalance(chatId, 100);
+        bot.editMessageText(`Balance changed successfully!`, {
+            chat_id: chatId,
+            message_id: query.message.message_id,
+            reply_markup: {
+                inline_keyboard: [
+                    [{text:"OK", callback_data:"main_menu"}]
+                ]
+            }
+        })
+        return;
+    }
+
     if (data === "game_labyrinth") {
-        gameLabyrinth.StartGame(query.message.chat.id, query.message.message_id, bot);
+        gameLabyrinth.StartGame(query.message.chat.id, query.message.message_id, bot, bank);
+        return;
     }
 
     if (data.startsWith("laby_")) {
-        gameLabyrinth.gamePlayStep(query.message.chat.id, query.message.message_id, data, bot);
+        gameLabyrinth.gamePlayStep(query.message.chat.id, query.message.message_id, data, bot, bank);
+        return;
+    }
+
+    if (data === "game_quit") {
+        bot.editMessageText("You sure you want to quit?\n"+
+            "You will not get your money back\n"+
+            "and the progress will be terminated.", {
+                chat_id: chatId,
+                message_id: query.message.message_id,
+                reply_markup: {
+                    inline_keyboard: [
+                        [{text:"I want to keep GAMBLING!", callback_data:"keep_playing_laby"}],
+                        [{text:"Quit anyway", callback_data:"main_menu"}]
+                    ]
+                }
+            });
+        return;
+    }
+
+    if (data === "keep_playing_laby") {
+        gameLabyrinth.gameContinueStep(chatId, query.message.message_id, bot, bank);
+        return;
     }
 
     if (data === "stop_bot") {
