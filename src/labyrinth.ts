@@ -102,6 +102,7 @@ export class GameLabyrinth {
             let currentPath = "";
             for (let i=0; i<userState.currentStep; ++i) currentPath+=userState.path[i];
             if (userState.currentStep == 3) {
+                await bank.changeBalance(chatId, +WINPOT);
                 const userBalance = await bank.getBalance(chatId);
                 bot.editMessageText(`${currentPath}\nYOU FOUND THE WAY!\nCONGRATULATIONS!!\nBalance: *${userBalance}* 💠`, {
                     parse_mode: 'Markdown',
@@ -115,7 +116,6 @@ export class GameLabyrinth {
                     }
                 });
                 this.userLabyGameState.delete(chatId);
-                bank.changeBalance(chatId, +WINPOT);
                 return;
             }
             const directions = [["⬅️", "laby_left"], ["⬆️","laby_forward"], ["➡️","laby_right"]];
