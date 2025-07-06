@@ -96,7 +96,9 @@ bot.on("callback_query", async (query: any) => {
     }
 
     if (data === "deposit") {
-        bank.changeBalance(chatId, 100);
+        if (+bank.getBalance(chatId))
+            bank.changeBalance(chatId, 100);
+        else bank.setBalance(chatId, 100); 
         bot.editMessageText(`Balance changed successfully!`, {
             chat_id: chatId,
             message_id: query.message.message_id,
